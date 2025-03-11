@@ -15,7 +15,9 @@ export const WebSocketProvider = ({ children }) => {
   // Function to initialize socket connection
   const initializeSocket = () => {
     // Create socket connection
-    socketRef.current = window.io('http://localhost:5000'); 
+    //socketRef.current = window.io('http://localhost:5000'); 
+    //socketRef.current = window.io('wss://python-websocket-server-b31b.onrender.com')
+    socketRef.current = window.io('wss://python-websocket-server-b31b.onrender.com')
 
     // Socket events handling
     socketRef.current.on('connect', () => {

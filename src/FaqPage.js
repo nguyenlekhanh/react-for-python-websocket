@@ -74,7 +74,7 @@ const FaqPage = () => {
           data-bs-parent="#accordionExample"
         >
           <div className="accordion-body">
-            If you encounter any issues or have any questions, feel free to reach out by sending an email to miningfundassist@gmail.com, and we will get back to you as soon as possible to assist you with your concern.
+            If you encounter any issues or have any questions, feel free to reach out by sending an email to <a href="mailto:miningfundassist@gmail.com">miningfundassist@gmail.com</a>, and we will get back to you as soon as possible to assist you with your concern.
           </div>
         </div>
       </div>
