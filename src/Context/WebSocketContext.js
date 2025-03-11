@@ -115,6 +115,7 @@ export const WebSocketProvider = ({ children }) => {
         alertMessage,
         machines,
         key,
+        setKey,
         setMachines,
         setAlertMessage,
         socketRef
