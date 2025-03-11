@@ -3,27 +3,146 @@ import { setCookie, getCookie, deleteCookie } from './library/cookieUtils';
 import { generateUniqueKey } from './library/util';
 // import logo from './logo.svg';
 import './App.css';
-import { useWebSocket } from './Context/WebSocketContext';
 
 function App() {
-  const { isServerConnected, setIsServerConnected, 
-          alertMessage, setAlertMessage, 
-            machines, setMachines, key, setKey, socketRef } = useWebSocket();
-  //const socketRef = useRef(null);
+  const socketRef = useRef(null);
   const timeToWait = 15; // Set the initial countdown value
-  //const [isServerConnect, setIsServerConnect] = useState(false); // State to hold the current countdown value
+  const [isServerConnect, setIsServerConnect] = useState(false); // State to hold the current countdown value
   const [countdown, setCountdown] = useState(0); // State to hold the current countdown value
   const [isFormConnectValid, setIsFormConnectValid] = useState(false); // State to hold the current countdown value
   const [isConnect, setIsConnect] = useState(false); // State to hold the current countdown value
-  //const [key, setKey] = useState('');
+  const [key, setKey] = useState('');
   const [command, setCommand] = useState('');
   const [selectedMachines, setSelectedMachines] = useState([]);
   const [commandsList, setCommandsList] = useState([]);
-  //const [alertMessage, setAlertMessage] = useState('');
+  const [alertMessage, setAlertMessage] = useState('');
 
   const [runCommand, setRunCommand] = useState(false);
   const [stopCommand, setStopCommand] = useState(false);
   
+
+  // Example machines for the selectbox
+  // const machines = ['Machine 1', 'Machine 2', 'Machine 3'];
+  // const machines = [];
+  const [machines, setMachines] = useState([]);
+
+  useEffect(() => {
+    // Initialize the socket connection after script is loaded
+    const initializeSocket = () => {
+      socketRef.current = window.io('http://localhost:5000'); 
+
+      socketRef.current.on('connect', function() {
+          console.log("Connected to server!");
+          setIsServerConnect(true);
+          const manager_key = getCookie("manager_key");
+          if(manager_key) {
+            setKey(manager_key);
+          }
+      });
+
+      socketRef.current.on('disconnect', () => {
+        setIsServerConnect(false);
+        console.log("Disconnected from server");
+      });
+
+      socketRef.current.on('connect_error', (error) => {
+        console.error("Connection error: ", error);
+      });
+
+      socketRef.current.on('manager-message', function(data) {
+          setAlertMessage(data.message);
+      });
+
+      socketRef.current.on('manager-key-success', function(data) {
+          console.log('cookie save: ' + data.managerKey);
+          setCookie("manager_key", data.managerKey, 360); 
+      });
+
+      socketRef.current.on('update-client-list', function(data) {
+          //console.log('get update client');
+          setMachines([]);
+
+          if (data.client_ids && data.client_ids.length > 0) {
+              const newMachines = [];
+
+              data.client_ids.forEach(client_id => {
+                  const newMachine = { client_id: client_id, name: `${client_id}` };
+
+                  // Check if the new machine already exists based on client_id
+                  if (!newMachines.some(machine => machine.client_id === client_id)) {
+                      newMachines.push(newMachine);
+                  }
+              });
+              setMachines(prevMachines => [...prevMachines, ...newMachines]);
+          } else {
+              setMachines([]);
+          }
+      });
+
+      socketRef.current.on('client-assigned', function(data) {
+          //console.log("Received client assigned data:", data);
+
+          // Create a new option element for the client
+          const newMachine = { client_id: data.client_name, name: data.client_name };
+          //setMachines(prevMachines => [...prevMachines, newMachine]);
+
+          setMachines(prevMachines => {
+              // Check if the client_id already exists in the previous state
+              if (!prevMachines.some(machine => machine.client_id === newMachine.client_id)) {
+                  // If not, add the new machine
+                  return [...prevMachines, newMachine];
+              }
+              // Otherwise, return the previous state without any changes (no duplicate added)
+              return prevMachines;
+          });
+
+          console.log('Client added to the select box:', data.client_name);
+      });
+
+      // Handle 'client-disconnected' event from the server
+      socketRef.current.on('client-disconnected', function(data) {
+          console.log("Client disconnected:", data);
+
+          const clientName = data.client_name;
+          setMachines(prevMachines => prevMachines.filter(machine => machine.client_id !== clientName));
+
+      });
+
+      return () => {
+        // Clean up the socket connection when the component unmounts
+        if (socketRef.current) {
+          console.log("server disconnect!");
+          socketRef.current.disconnect();
+        }
+      };
+    };
+
+
+    // Check if the script is already loaded
+    if (!window.io) {
+      const script = document.createElement('script');
+      script.src = "https://cdn.socket.io/4.0.1/socket.io.min.js";
+      script.async = true;
+      script.onload = () => {
+        //console.log('Socket.IO script loaded successfully');
+        initializeSocket();
+      };
+      script.onerror = (error) => {
+        console.error('Error loading Socket.IO script:', error);
+      };
+      document.head.appendChild(script);
+    } else {
+      initializeSocket();
+    }
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, []); // Empty dependency array to run only once on component mount
+
+
   // Effect to decrease the countdown every second
   useEffect(() => {
     if (countdown <= 0) {
@@ -179,7 +298,7 @@ function App() {
       <div className="container my-4">
 
         <h2 className="text-center mb-4">Manage Your Mining Machines</h2>
-        {!isServerConnected && (
+        {!isServerConnect && (
           <div className="alert alert-warning alert-dismissible fade show" role="alert">
             The server has disconnected.
           </div>
@@ -192,7 +311,7 @@ function App() {
         <div className="row">
           {/* Section 1: Left side - 50% width */}
           <div className="col-md-6">
-            <h5>Step 1: Generate your key and connect to the server with your key.</h5>
+            <h5>Step 1: Generate your key and connect to Server With Your key</h5>
 
             {/* Input for key */}
             <form onSubmit={handleConnect}>
@@ -217,7 +336,7 @@ function App() {
                   Generate Key
                 </button>
                 <button type="submit" className="btn btn-success"
-                        disabled={!isServerConnected}
+                        disabled={!isServerConnect}
                         onClick={(e) => countdown<=0 && setIsConnect(true)}>
                   {countdown <= 0 ? "Connect" : "Wait for next connection: " + countdown}
                 </button>
@@ -225,13 +344,13 @@ function App() {
 
             </form>
 
-            <h5>Step 2: Download the client software and install it on the computer you want to control.
-                <br/>- Copy your key into your machine's config.json file.
-                <br/>- Run the software.
+            <h5>Step 2: Download client software and install it to your computer that you want to control.<br/>
+                Copy your key to your config file <br/>
+                Run it
             </h5>
             <p>Link Linux, Link Window, Link Macos</p>
 
-            <h5>Step 3: Check if your machine is connected here and run a command to manage it.</h5>
+            <h5>Step 3: Check your machine connect to here and run a command to manage it</h5>
             <form 
               onSubmit={handleCommand}
             >
@@ -295,7 +414,7 @@ function App() {
 
           {/* Section 2: Right side - 50% width */}
           <div className="col-md-6">
-            <h5>* Command and Machine Information</h5>
+            <h5>Section 2: Command and Machine Information</h5>
 
             {/* Table to show the commands, machines, and Run button */}
             <table className="table">
